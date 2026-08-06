@@ -72,7 +72,7 @@
 
 <script src="lib/three.min.js"></script>
 <script src="lib/OrbitControls.js"></script>
-<script src="data.js?v=1786029171"></script>
+<script src="data.js?v=1786030523"></script>
 <script>
 var variants = window.VARIANT_DATA.variants;
 var container = document.getElementById('viewer');
@@ -93,12 +93,14 @@ scene.add(gridHelper);
 var axesHelper = new THREE.AxesHelper(0.2);
 scene.add(axesHelper);
 
-var ambient = new THREE.AmbientLight(0xffffff, 0.5);
+var ambient = new THREE.AmbientLight(0xffffff, 0.8);
 scene.add(ambient);
-var dir = new THREE.DirectionalLight(0xffffff, 0.5);
+var hemi = new THREE.HemisphereLight(0xffffff, 0x30303a, 0.5);
+scene.add(hemi);
+var dir = new THREE.DirectionalLight(0xffffff, 0.85);
 dir.position.set(1.5, 2.5, 1.5);
 scene.add(dir);
-var dir2 = new THREE.DirectionalLight(0xffffff, 0.35);
+var dir2 = new THREE.DirectionalLight(0xffffff, 0.5);
 dir2.position.set(-1, -0.5, -1);
 scene.add(dir2);
 
