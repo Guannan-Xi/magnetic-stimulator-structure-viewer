@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>磁场发射器 结构方案查看器 V0.1</title>
+<style>
+  :root { --bg:#15161a; --panel:#1e2026; --line:#33363f; --text:#e8e8ec; --muted:#9aa0ab; --accent:#c8792f; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:"Microsoft YaHei","PingFang SC",sans-serif; height:100vh; display:flex; flex-direction:column; }
+  header { display:flex; align-items:center; gap:16px; padding:10px 18px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  header h1 { font-size:16px; font-weight:600; }
+  header .meta { color:var(--muted); font-size:12px; }
+  header a { color:var(--accent); text-decoration:none; font-size:12px; }
+  header a:hover { text-decoration:underline; }
+  main { flex:1; display:flex; min-height:0; }
+  #viewer { flex:1; position:relative; }
+  #viewer canvas { display:block; width:100%; height:100%; }
+  aside { width:300px; background:var(--panel); border-left:1px solid var(--line); padding:14px; overflow:auto; }
+  .tabs { display:flex; gap:8px; margin-bottom:12px; }
+  .tab { flex:1; padding:8px 4px; border:1px solid var(--line); background:transparent; color:var(--muted); border-radius:6px; cursor:pointer; font-size:12px; }
+  .tab.active { color:#fff; border-color:var(--accent); background:rgba(200,121,47,.15); }
+  h2 { font-size:14px; margin:10px 0 6px; }
+  .dims { color:var(--muted); font-size:12px; margin-bottom:10px; }
+  .legend { list-style:none; }
+  .legend li { display:flex; align-items:center; gap:8px; padding:5px 0; font-size:12px; border-bottom:1px solid rgba(255,255,255,.05); }
+  .swatch { width:14px; height:14px; border-radius:3px; flex:none; }
+  .controls { margin-top:14px; display:flex; flex-direction:column; gap:8px; }
+  .controls label { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); cursor:pointer; }
+  .controls button { padding:7px; border:1px solid var(--line); background:transparent; color:var(--text); border-radius:6px; cursor:pointer; font-size:12px; }
+  .rotate-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; }
+  .controls button:hover { border-color:var(--accent); }
+  footer { border-top:1px solid var(--line); padding:6px 18px; color:var(--muted); font-size:11px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>磁场发射器 结构方案查看器</h1>
+  <span class="meta">V0.1 · 参数初稿 · 用于结构评审</span>
+  <a href="https://quanland.feishu.cn/docx/UYjvdqTo1okVpJxWGjPcf0z6nZe" target="_blank">飞书需求文档</a>
+  <a href="https://quanland.feishu.cn/docx/UYjvdqTo1okVpJxWGjPcf0z6nZe" target="_blank">参数卡</a>
+</header>
+<main>
+  <div id="viewer"></div>
+  <aside>
+    <div class="tabs" id="tabs"></div>
+    <h2 id="modelName"></h2>
+    <div class="dims" id="modelDims"></div>
+    <ul class="legend" id="legend"></ul>
+    <div class="controls">
+      <div class="rotate-row">
+        <button id="rotLeft">⟲ 左旋</button>
+        <button id="rotRight">⟳ 右旋</button>
+        <button id="tiltUp">↑ 上倾</button>
+        <button id="tiltDown">↓ 下倾</button>
+        <button id="zoomIn">+ 放大</button>
+        <button id="zoomOut">− 缩小</button>
+      </div>
+      <div class="rotate-row">
+        <button id="viewFront">⬇ 底部朝下</button>
+        <button id="viewOblique">◇ 立体视角</button>
+      </div>
+      <label><input type="checkbox" id="autoRotate" checked> 自动旋转</label>
+      <label><input type="checkbox" id="wireframe"> 线框显示</label>
+      <label><input type="checkbox" id="grid" checked> 网格参考</label>
+      <button id="reloadModel">刷新模型（重新生成后点这里）</button>
+      <button id="resetView">复位视角</button>
+    </div>
+  </aside>
+</main>
+<footer>左键拖拽旋转 · 滚轮缩放 · 右键平移 · 也可用右侧按钮或方向键（←→ 旋转 / ↑↓ 俯仰 / +− 缩放）。模型为参数初稿，供结构评审。</footer>
+
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+<script src="data.js?v=1785935703"></script>
+<script>
+var variants = window.VARIANT_DATA.variants;
+var container = document.getElementById('viewer');
+var scene = new THREE.Scene();
+scene.background = new THREE.Color(0x15161a);
+
+var camera = new THREE.PerspectiveCamera(50, 1, 0.01, 100);
+var renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+container.appendChild(renderer.domElement);
+
+var controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+
+var gridHelper = new THREE.GridHelper(1, 20, 0x3a3d46, 0x262932);
+scene.add(gridHelper);
+var axesHelper = new THREE.AxesHelper(0.2);
+scene.add(axesHelper);
+
+var ambient = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambient);
+var dir = new THREE.DirectionalLight(0xffffff, 0.5);
+dir.position.set(1.5, 2.5, 1.5);
+scene.add(dir);
+var dir2 = new THREE.DirectionalLight(0xffffff, 0.35);
+dir2.position.set(-1, -0.5, -1);
+scene.add(dir2);
+
+var group = null;
+
+function hexToRgb(hex) {
+  var n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function buildMeshes(key) {
+  var v = variants[key];
+  group = new THREE.Group();
+  group.scale.set(0.001, 0.001, 0.001);
+  v.meshes.forEach(function (m) {
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(m.positions.flat(), 3));
+    geo.setIndex(m.indices);
+    geo.computeVertexNormals();
+    var mat = new THREE.MeshLambertMaterial({ color: parseInt(m.color.slice(1), 16), side: THREE.DoubleSide });
+    var mesh = new THREE.Mesh(geo, mat);
+    group.add(mesh);
+  });
+  scene.add(group);
+  // 模型坐标 Z 朝上 -> Three.js 世界 Y 朝上, 整体旋转 -90° 让底板朝下
+  group.rotation.x = -Math.PI / 2;
+  var box = new THREE.Box3().setFromObject(group);
+  group.position.y -= box.min.y;
+  box = new THREE.Box3().setFromObject(group);
+  var center = box.getCenter(new THREE.Vector3());
+  var size = box.getSize(new THREE.Vector3()).length();
+  camera.near = size / 200;
+  camera.far = size * 20;
+  camera.updateProjectionMatrix();
+  controls.target.copy(center);
+  viewFront();
+}
+
+function viewFront() {
+  if (!group) return;
+  var box = new THREE.Box3().setFromObject(group);
+  var center = box.getCenter(new THREE.Vector3());
+  var size = box.getSize(new THREE.Vector3());
+  var dist = Math.max(size.x, size.y, size.z) * 1.7;
+  controls.target.copy(center);
+  camera.position.copy(center).add(new THREE.Vector3(dist, dist * 0.38, 0));
+  camera.lookAt(controls.target);
+  controls.update();
+}
+
+function viewOblique() {
+  if (!group) return;
+  var box = new THREE.Box3().setFromObject(group);
+  var center = box.getCenter(new THREE.Vector3());
+  var size = box.getSize(new THREE.Vector3()).length();
+  controls.target.copy(center);
+  camera.position.copy(center).add(new THREE.Vector3(size * 1.25, size * 0.7, size * 1.25));
+  camera.lookAt(controls.target);
+  controls.update();
+}
+
+function setWireframe(on) {
+  if (!group) return;
+  group.traverse(function (obj) {
+    if (obj.isMesh) obj.material.wireframe = on;
+  });
+}
+
+function selectVariant(key) {
+  if (group) { scene.remove(group); group = null; }
+  var v = variants[key];
+  buildMeshes(key);
+  document.getElementById('modelName').textContent = v.name;
+  document.getElementById('modelDims').textContent = '外形尺寸：' + v.dims;
+  var legend = document.getElementById('legend');
+  legend.innerHTML = '';
+  v.legend.forEach(function (item) {
+    var li = document.createElement('li');
+    var sw = document.createElement('span');
+    sw.className = 'swatch';
+    sw.style.background = item[0];
+    var tx = document.createElement('span');
+    tx.textContent = item[1];
+    li.appendChild(sw); li.appendChild(tx);
+    legend.appendChild(li);
+  });
+  document.querySelectorAll('.tab').forEach(function (t) {
+    t.classList.toggle('active', t.dataset.key === key);
+  });
+  document.getElementById('wireframe').checked = false;
+  setWireframe(false);
+}
+
+var tabsEl = document.getElementById('tabs');
+Object.keys(variants).forEach(function (key) {
+  var b = document.createElement('button');
+  b.className = 'tab';
+  b.dataset.key = key;
+  b.textContent = { a: 'A 小鼠版', b: 'B 体外版', c: 'C 人体版' }[key];
+  b.addEventListener('click', function () { selectVariant(key); });
+  tabsEl.appendChild(b);
+});
+
+document.getElementById('autoRotate').addEventListener('change', function (e) {
+  controls.autoRotate = e.target.checked;
+  controls.autoRotateSpeed = 1.5;
+});
+document.getElementById('wireframe').addEventListener('change', function (e) {
+  setWireframe(e.target.checked);
+});
+document.getElementById('grid').addEventListener('change', function (e) {
+  gridHelper.visible = e.target.checked;
+  axesHelper.visible = e.target.checked;
+});
+document.getElementById('resetView').addEventListener('click', function () {
+  selectVariant(currentKey());
+});
+document.getElementById('reloadModel').addEventListener('click', function () {
+  location.reload();
+});
+function orbitCamera(yaw, pitch) {
+  if (!group) return;
+  var offset = camera.position.clone().sub(controls.target);
+  var len = offset.length();
+  offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+  var right = new THREE.Vector3().crossVectors(offset, new THREE.Vector3(0, 1, 0)).normalize();
+  offset.applyAxisAngle(right, pitch);
+  camera.position.copy(controls.target).add(offset.normalize().multiplyScalar(len));
+  camera.lookAt(controls.target);
+  controls.update();
+}
+function zoomCamera(factor) {
+  if (!group) return;
+  var offset = camera.position.clone().sub(controls.target);
+  var len = Math.max(offset.length() * factor, 0.02);
+  camera.position.copy(controls.target).add(offset.normalize().multiplyScalar(len));
+  camera.lookAt(controls.target);
+  controls.update();
+}
+document.getElementById('rotLeft').addEventListener('click', function () { orbitCamera(0.25, 0); });
+document.getElementById('rotRight').addEventListener('click', function () { orbitCamera(-0.25, 0); });
+document.getElementById('tiltUp').addEventListener('click', function () { orbitCamera(0, 0.2); });
+document.getElementById('tiltDown').addEventListener('click', function () { orbitCamera(0, -0.2); });
+document.getElementById('zoomIn').addEventListener('click', function () { zoomCamera(0.82); });
+document.getElementById('zoomOut').addEventListener('click', function () { zoomCamera(1.2); });
+document.getElementById('viewFront').addEventListener('click', function () { viewFront(); });
+document.getElementById('viewOblique').addEventListener('click', function () { viewOblique(); });
+window.addEventListener('keydown', function (e) {
+  if (e.key === 'ArrowLeft') orbitCamera(0.15, 0);
+  else if (e.key === 'ArrowRight') orbitCamera(-0.15, 0);
+  else if (e.key === 'ArrowUp') orbitCamera(0, 0.12);
+  else if (e.key === 'ArrowDown') orbitCamera(0, -0.12);
+  else if (e.key === '+') zoomCamera(0.85);
+  else if (e.key === '-') zoomCamera(1.18);
+});
+function currentKey() {
+  var active = document.querySelector('.tab.active');
+  return active ? active.dataset.key : 'a';
+}
+
+function resize() {
+  var w = container.clientWidth, h = container.clientHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+window.addEventListener('resize', resize);
+resize();
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+selectVariant('a');
+</script>
+</body>
+</html>
