@@ -23,7 +23,8 @@
   h2 { font-size:14px; margin:10px 0 6px; }
   .dims { color:var(--muted); font-size:12px; margin-bottom:10px; }
   .legend { list-style:none; }
-  .legend li { display:flex; align-items:center; gap:8px; padding:5px 0; font-size:12px; border-bottom:1px solid rgba(255,255,255,.05); }
+  .legend li { display:flex; align-items:center; gap:8px; padding:5px 0; font-size:12px; border-bottom:1px solid rgba(255,255,255,.05); cursor:pointer; }
+  .legend li.hidden { opacity:.35; text-decoration:line-through; }
   .swatch { width:14px; height:14px; border-radius:3px; flex:none; }
   .controls { margin-top:14px; display:flex; flex-direction:column; gap:8px; }
   .controls label { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); cursor:pointer; }
@@ -60,6 +61,8 @@
         <button id="viewFront">⬇ 底部朝下</button>
         <button id="viewOblique">◇ 立体视角</button>
       </div>
+      <label>拆解观察 <input type="range" id="explode" min="0" max="100" value="0"></label>
+      <button id="showAll">全部显示</button>
       <label><input type="checkbox" id="autoRotate" checked> 自动旋转</label>
       <label><input type="checkbox" id="wireframe"> 线框显示</label>
       <label><input type="checkbox" id="grid" checked> 网格参考</label>
@@ -72,7 +75,7 @@
 
 <script src="lib/three.min.js"></script>
 <script src="lib/OrbitControls.js"></script>
-<script src="data.js?v=1786030523"></script>
+<script src="data.js?v=1786033438"></script>
 <script>
 var variants = window.VARIANT_DATA.variants;
 var container = document.getElementById('viewer');
@@ -93,18 +96,20 @@ scene.add(gridHelper);
 var axesHelper = new THREE.AxesHelper(0.2);
 scene.add(axesHelper);
 
-var ambient = new THREE.AmbientLight(0xffffff, 0.8);
+var ambient = new THREE.AmbientLight(0xffffff, 0.45);
 scene.add(ambient);
-var hemi = new THREE.HemisphereLight(0xffffff, 0x30303a, 0.5);
+var hemi = new THREE.HemisphereLight(0xffffff, 0x30303a, 0.3);
 scene.add(hemi);
-var dir = new THREE.DirectionalLight(0xffffff, 0.85);
+var dir = new THREE.DirectionalLight(0xffffff, 0.8);
 dir.position.set(1.5, 2.5, 1.5);
 scene.add(dir);
-var dir2 = new THREE.DirectionalLight(0xffffff, 0.5);
+var dir2 = new THREE.DirectionalLight(0xffffff, 0.35);
 dir2.position.set(-1, -0.5, -1);
 scene.add(dir2);
 
 var group = null;
+var currentMeshes = [];
+var hiddenGroups = {};
 
 function hexToRgb(hex) {
   var n = parseInt(hex.slice(1), 16);
@@ -115,6 +120,7 @@ function buildMeshes(key) {
   var v = variants[key];
   group = new THREE.Group();
   group.scale.set(0.001, 0.001, 0.001);
+  currentMeshes = [];
   v.meshes.forEach(function (m) {
     var geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(m.positions.flat(), 3));
@@ -122,6 +128,8 @@ function buildMeshes(key) {
     geo.computeVertexNormals();
     var mat = new THREE.MeshLambertMaterial({ color: parseInt(m.color.slice(1), 16), side: THREE.DoubleSide });
     var mesh = new THREE.Mesh(geo, mat);
+    mesh.userData.group = m.group || '其他';
+    currentMeshes.push(mesh);
     group.add(mesh);
   });
   scene.add(group);
@@ -144,10 +152,10 @@ function viewFront() {
   var box = new THREE.Box3().setFromObject(group);
   var center = box.getCenter(new THREE.Vector3());
   var size = box.getSize(new THREE.Vector3());
-  var dist = Math.max(size.x, size.y, size.z) * 1.7;
+  var dist = Math.max(size.x, size.y, size.z) * (size.x > size.z * 1.4 ? 1.25 : 1.45);
   controls.target.copy(center);
   if (size.x > size.z * 1.4) {
-    camera.position.copy(center).add(new THREE.Vector3(0, dist * 0.38, dist));
+    camera.position.copy(center).add(new THREE.Vector3(dist * 0.8, dist * 0.45, dist));
   } else {
     camera.position.copy(center).add(new THREE.Vector3(dist, dist * 0.38, 0));
   }
@@ -173,24 +181,68 @@ function setWireframe(on) {
   });
 }
 
+function renderLegend(groups) {
+  var legend = document.getElementById('legend');
+  legend.innerHTML = '';
+  groups.forEach(function (g) {
+    var li = document.createElement('li');
+    li.dataset.group = g.name;
+    var sw = document.createElement('span');
+    sw.className = 'swatch';
+    sw.style.background = g.color;
+    var tx = document.createElement('span');
+    tx.textContent = g.name;
+    li.appendChild(sw);
+    li.appendChild(tx);
+    li.addEventListener('click', function () { toggleGroup(g.name); });
+    legend.appendChild(li);
+  });
+}
+
+function toggleGroup(name) {
+  hiddenGroups[name] = !hiddenGroups[name];
+  currentMeshes.forEach(function (m) {
+    if (m.userData.group === name) m.visible = !hiddenGroups[name];
+  });
+  document.querySelectorAll('#legend li').forEach(function (li) {
+    li.classList.toggle('hidden', !!hiddenGroups[li.dataset.group]);
+  });
+}
+
+function applyExplode(val) {
+  if (!currentMeshes.length) return;
+  var factor = val / 100;
+  var centers = currentMeshes.map(function (m) {
+    m.geometry.computeBoundingBox();
+    return m.geometry.boundingBox.getCenter(new THREE.Vector3());
+  });
+  var asm = new THREE.Vector3();
+  centers.forEach(function (c) { asm.add(c); });
+  asm.divideScalar(centers.length);
+  var maxDim = 0;
+  currentMeshes.forEach(function (m) {
+    var s = m.geometry.boundingBox.getSize(new THREE.Vector3()).length();
+    if (s > maxDim) maxDim = s;
+  });
+  currentMeshes.forEach(function (m, i) {
+    var dir = centers[i].clone().sub(asm);
+    if (dir.lengthSq() < 1e-9) dir.set(0, 1, 0);
+    dir.normalize();
+    m.position.copy(dir.multiplyScalar(factor * maxDim * 0.45));
+  });
+}
+
 function selectVariant(key) {
   if (group) { scene.remove(group); group = null; }
   var v = variants[key];
   buildMeshes(key);
   document.getElementById('modelName').textContent = v.name;
   document.getElementById('modelDims').textContent = '外形尺寸：' + v.dims;
-  var legend = document.getElementById('legend');
-  legend.innerHTML = '';
-  v.legend.forEach(function (item) {
-    var li = document.createElement('li');
-    var sw = document.createElement('span');
-    sw.className = 'swatch';
-    sw.style.background = item[0];
-    var tx = document.createElement('span');
-    tx.textContent = item[1];
-    li.appendChild(sw); li.appendChild(tx);
-    legend.appendChild(li);
-  });
+  hiddenGroups = {};
+  renderLegend(v.groups);
+  var expl = document.getElementById('explode');
+  expl.value = 0;
+  applyExplode(0);
   document.querySelectorAll('.tab').forEach(function (t) {
     t.classList.toggle('active', t.dataset.key === key);
   });
@@ -252,6 +304,12 @@ document.getElementById('zoomIn').addEventListener('click', function () { zoomCa
 document.getElementById('zoomOut').addEventListener('click', function () { zoomCamera(1.2); });
 document.getElementById('viewFront').addEventListener('click', function () { viewFront(); });
 document.getElementById('viewOblique').addEventListener('click', function () { viewOblique(); });
+document.getElementById('explode').addEventListener('input', function (e) { applyExplode(Number(e.target.value)); });
+document.getElementById('showAll').addEventListener('click', function () {
+  hiddenGroups = {};
+  currentMeshes.forEach(function (m) { m.visible = true; });
+  document.querySelectorAll('#legend li').forEach(function (li) { li.classList.remove('hidden'); });
+});
 window.addEventListener('keydown', function (e) {
   if (e.key === 'ArrowLeft') orbitCamera(0.15, 0);
   else if (e.key === 'ArrowRight') orbitCamera(-0.15, 0);
@@ -282,6 +340,11 @@ function animate() {
 animate();
 var initialKey = new URLSearchParams(location.search).get('v');
 selectVariant(variants[initialKey] ? initialKey : 'a');
+var exp = Number(new URLSearchParams(location.search).get('explode'));
+if (exp > 0) {
+  document.getElementById('explode').value = exp;
+  applyExplode(exp);
+}
 </script>
 </body>
 </html>
