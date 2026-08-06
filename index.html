@@ -72,7 +72,7 @@
 
 <script src="lib/three.min.js"></script>
 <script src="lib/OrbitControls.js"></script>
-<script src="data.js?v=1785935703"></script>
+<script src="data.js?v=1786029171"></script>
 <script>
 var variants = window.VARIANT_DATA.variants;
 var container = document.getElementById('viewer');
@@ -144,7 +144,11 @@ function viewFront() {
   var size = box.getSize(new THREE.Vector3());
   var dist = Math.max(size.x, size.y, size.z) * 1.7;
   controls.target.copy(center);
-  camera.position.copy(center).add(new THREE.Vector3(dist, dist * 0.38, 0));
+  if (size.x > size.z * 1.4) {
+    camera.position.copy(center).add(new THREE.Vector3(0, dist * 0.38, dist));
+  } else {
+    camera.position.copy(center).add(new THREE.Vector3(dist, dist * 0.38, 0));
+  }
   camera.lookAt(controls.target);
   controls.update();
 }
@@ -197,7 +201,7 @@ Object.keys(variants).forEach(function (key) {
   var b = document.createElement('button');
   b.className = 'tab';
   b.dataset.key = key;
-  b.textContent = { a: 'A 小鼠版', b: 'B 体外版', c: 'C 人体版' }[key];
+  b.textContent = { a: 'A 小鼠版', b: 'B 体外版', c: 'C 人体版', d: 'D 8通道并行' }[key];
   b.addEventListener('click', function () { selectVariant(key); });
   tabsEl.appendChild(b);
 });
@@ -274,7 +278,8 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
-selectVariant('a');
+var initialKey = new URLSearchParams(location.search).get('v');
+selectVariant(variants[initialKey] ? initialKey : 'a');
 </script>
 </body>
 </html>
