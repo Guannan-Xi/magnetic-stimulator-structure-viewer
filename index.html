@@ -78,7 +78,7 @@
 
 <script src="lib/three.min.js"></script>
 <script src="lib/OrbitControls.js"></script>
-<script src="data.js?v=1786033996"></script>
+<script src="data.js?v=1786158146"></script>
 <script>
 var variants = window.VARIANT_DATA.variants;
 var container = document.getElementById('viewer');
@@ -114,6 +114,7 @@ var group = null;
 var currentMeshes = [];
 var hiddenGroups = {};
 var removedStack = [];
+var currentKeyName = 'a';
 var raycaster = new THREE.Raycaster();
 var ndc = new THREE.Vector2();
 
@@ -160,7 +161,9 @@ function viewFront() {
   var size = box.getSize(new THREE.Vector3());
   var dist = Math.max(size.x, size.y, size.z) * (size.x > size.z * 1.4 ? 1.05 : 1.3);
   controls.target.copy(center);
-  if (size.x > size.z * 1.4) {
+  if (currentKeyName === 'd') {
+    camera.position.copy(center).add(new THREE.Vector3(dist * 1.0, dist * 0.5, dist * 1.0));
+  } else if (size.x > size.z * 1.4) {
     camera.position.copy(center).add(new THREE.Vector3(dist * 0.8, dist * 0.45, dist));
   } else {
     camera.position.copy(center).add(new THREE.Vector3(dist, dist * 0.38, 0));
@@ -294,6 +297,7 @@ function applyExplode(val) {
 
 function selectVariant(key) {
   if (group) { scene.remove(group); group = null; }
+  currentKeyName = key;
   var v = variants[key];
   buildMeshes(key);
   document.getElementById('modelName').textContent = v.name;
@@ -315,7 +319,7 @@ Object.keys(variants).forEach(function (key) {
   var b = document.createElement('button');
   b.className = 'tab';
   b.dataset.key = key;
-  b.textContent = { a: 'A 小鼠版', b: 'B 体外版', c: 'C 人体版', d: 'D 8通道并行' }[key];
+  b.textContent = { a: 'A 小鼠版', b: 'B 体外样机', d: 'D 5通道并行' }[key];
   b.addEventListener('click', function () { selectVariant(key); });
   tabsEl.appendChild(b);
 });
