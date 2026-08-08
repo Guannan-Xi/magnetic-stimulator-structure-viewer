@@ -78,7 +78,7 @@
 
 <script src="lib/three.min.js"></script>
 <script src="lib/OrbitControls.js"></script>
-<script src="data.js?v=1786166358"></script>
+<script src="data.js?v=1786202403"></script>
 <script>
 var variants = window.VARIANT_DATA.variants;
 var container = document.getElementById('viewer');
@@ -114,7 +114,7 @@ var group = null;
 var currentMeshes = [];
 var hiddenGroups = {};
 var removedStack = [];
-var currentKeyName = 'a';
+var currentKeyName = 'single';
 var raycaster = new THREE.Raycaster();
 var ndc = new THREE.Vector2();
 
@@ -319,7 +319,7 @@ Object.keys(variants).forEach(function (key) {
   var b = document.createElement('button');
   b.className = 'tab';
   b.dataset.key = key;
-  b.textContent = { a: 'A 小鼠版', b: 'B 体外样机', d: 'D 5通道并行' }[key];
+  b.textContent = { single: '单只', multi: '多只', plate: '体外' }[key];
   b.addEventListener('click', function () { selectVariant(key); });
   tabsEl.appendChild(b);
 });
@@ -387,7 +387,7 @@ window.addEventListener('keydown', function (e) {
 });
 function currentKey() {
   var active = document.querySelector('.tab.active');
-  return active ? active.dataset.key : 'a';
+  return active ? active.dataset.key : 'single';
 }
 
 function resize() {
@@ -406,7 +406,7 @@ function animate() {
 }
 animate();
 var initialKey = new URLSearchParams(location.search).get('v');
-selectVariant(variants[initialKey] ? initialKey : 'a');
+selectVariant(variants[initialKey] ? initialKey : 'single');
 var exp = Number(new URLSearchParams(location.search).get('explode'));
 if (exp > 0) {
   document.getElementById('explode').value = exp;
