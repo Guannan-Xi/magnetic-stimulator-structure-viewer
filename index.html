@@ -46,7 +46,11 @@
   <div id="viewer"></div>
   <aside>
 <div class="tabs" id="tabs"></div>
-<div style="margin-top:8px"><a class="tab" href="sim.html" style="display:inline-block;flex:none;text-decoration:none;padding:8px 14px" title="体外模块 Helmholtz 仿真结果">体外模块仿真 →</a></div>
+<div style="margin-top:8px;display:flex;gap:8px">
+  <a class="tab" href="sim.html?mode=single" style="display:inline-block;flex:1;text-decoration:none;padding:8px 4px;text-align:center" title="单只模式仿真结果">单只仿真</a>
+  <a class="tab" href="sim.html?mode=multi" style="display:inline-block;flex:1;text-decoration:none;padding:8px 4px;text-align:center" title="多只模式仿真结果">多只仿真</a>
+  <a class="tab" href="sim.html?mode=plate" style="display:inline-block;flex:1;text-decoration:none;padding:8px 4px;text-align:center" title="体外模式仿真结果">体外仿真</a>
+</div>
     <h2 id="modelName"></h2>
     <div class="dims" id="modelDims"></div>
     <ul class="legend" id="legend"></ul>
