@@ -23,6 +23,7 @@
 
 - `index.html`：3D 查看器（离线可用）
 - `data.js`：内嵌几何数据（自动生成）
+- `sim.html` + `sim_data.js`：体外模块 Helmholtz 仿真结果（磁场热图/轴线曲线/热参数）
 - `stl/`：STL 网格文件（3D 打印/网格验证用）
 - `lib/`：Three.js 渲染库
 
