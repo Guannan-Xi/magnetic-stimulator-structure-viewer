@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>体外模块 Helmholtz 仿真结果</title>
+<title>磁场仿真结果（单只 / 多只 / 体外）</title>
 <style>
 :root { --bg:#15161a; --panel:#1e2026; --line:#34373f; --muted:#9aa0ab; --text:#e8eaed; --accent:#f0962f; }
 * { box-sizing:border-box; margin:0; padding:0; }
@@ -11,11 +11,14 @@ body { background:var(--bg); color:var(--text); font-family:"Microsoft YaHei",sa
 h1 { font-size:18px; margin-bottom:4px; }
 .sub { color:var(--muted); font-size:12px; margin-bottom:12px; }
 a.back { color:var(--accent); text-decoration:none; font-size:12px; }
+.tabs { display:flex; gap:8px; margin:10px 0; }
+.tab { flex:1; padding:8px 4px; border:1px solid var(--line); background:transparent; color:var(--muted); border-radius:6px; cursor:pointer; font-size:13px; }
+.tab.active { color:#fff; border-color:var(--accent); background:rgba(240,150,47,.15); }
 .grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
 @media (max-width:980px){ .grid { grid-template-columns:1fr; } }
 .panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px; }
 .panel h2 { font-size:14px; margin-bottom:8px; color:var(--accent); }
-#viewer { width:100%; height:360px; border-radius:6px; background:#101216; }
+#viewer { width:100%; height:340px; border-radius:6px; background:#101216; }
 .controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:8px; }
 .controls label { color:var(--muted); }
 .controls select, .controls input { background:#15161a; color:var(--text); border:1px solid var(--line); border-radius:4px; padding:4px 6px; }
@@ -25,7 +28,7 @@ a.back { color:var(--accent); text-decoration:none; font-size:12px; }
 .card .k { color:var(--muted); font-size:11px; }
 .card .v { font-size:17px; font-weight:bold; margin-top:2px; }
 .card .v small { font-size:11px; color:var(--muted); font-weight:normal; }
-canvas.chart { width:100%; height:300px; background:#101216; border-radius:6px; display:block; }
+canvas.chart { width:100%; height:280px; background:#101216; border-radius:6px; display:block; }
 .legend { display:flex; align-items:center; gap:6px; margin-top:6px; color:var(--muted); font-size:11px; }
 .legend .bar { width:180px; height:10px; border-radius:3px; }
 table { width:100%; border-collapse:collapse; margin-top:6px; font-size:12px; }
@@ -38,21 +41,23 @@ td:first-child, th:first-child { text-align:left; }
 </head>
 <body>
 <a class="back" href="index.html">← 返回结构查看器</a>
-<h1>体外模块（Helmholtz 线圈对）仿真结果</h1>
+<h1>磁场仿真结果（单只 / 多只 / 体外）</h1>
 <div class="sub" id="metaLine">Biot-Savart 数值积分初版（非商业 FEM，样机阶段需 FEM+实测复核）</div>
+
+<div class="tabs" id="modeTabs">
+  <button class="tab active" data-mode="single">单只</button>
+  <button class="tab" data-mode="multi">多只</button>
+  <button class="tab" data-mode="plate">体外</button>
+</div>
 
 <div class="grid">
   <div class="panel">
-    <h2>结构示意（环间距=半径，培养板位于两环中央）</h2>
+    <h2 id="structTitle">结构示意</h2>
     <div id="viewer"></div>
-    <div class="controls">
-      <label>线圈半径 R：</label>
-      <select id="radiusSel"></select>
-      <label style="margin-left:6px"><input type="checkbox" id="showRegions" checked> 显示 5×5 孔区/整板框</label>
-    </div>
+    <div class="controls" id="modeControls"></div>
   </div>
   <div class="panel">
-    <h2>中心平面磁场分布（mT）</h2>
+    <h2 id="heatTitle">磁场分布（mT）</h2>
     <canvas id="heatmap" class="chart"></canvas>
     <div class="legend"><span class="bar" id="legendBar"></span><span id="legendText"></span></div>
     <div class="stats" id="stats"></div>
@@ -61,16 +66,16 @@ td:first-child, th:first-child { text-align:left; }
 
 <div class="grid">
   <div class="panel">
-    <h2>沿轴心线场强 B(z)</h2>
+    <h2 id="curveTitle">场强曲线</h2>
     <canvas id="axisChart" class="chart"></canvas>
-    <div class="note">z=0 为培养板所在中心平面；两环位于 z=±R/2（间距=R）。</div>
+    <div class="note" id="curveNote"></div>
   </div>
   <div class="panel">
-    <h2>选型与热参数</h2>
+    <h2>选型与热参数（体外模块）</h2>
     <table id="variantTable"></table>
     <div class="note">功耗按铜绕组估算（4 A/mm²）；“3min 温升”为含骨架/散热片热容的估算上限，液面温升需样机实测。</div>
     <table id="thermalTable" style="margin-top:10px"></table>
-    <div class="note warn">热优化：15 mT 全档功耗高（R=90 约 117 W @4 A）；建议常用档 12 mT（NI≈1200，约 75 W），加导热骨架/铝散热片/风冷。</div>
+    <div class="note warn" id="thermalWarn"></div>
   </div>
 </div>
 
@@ -81,56 +86,88 @@ td:first-child, th:first-child { text-align:left; }
 var S = window.SIM_DATA;
 document.getElementById('metaLine').textContent = S.meta.title + '（' + S.meta.method + '）';
 
-/* ---------- 3D 结构 ---------- */
+/* ---------- 3D 结构（局部坐标 z 向上，渲染时整体旋转为正立） ---------- */
 var container = document.getElementById('viewer');
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(0x101216);
 var camera = new THREE.PerspectiveCamera(50, 1, 1, 3000);
-camera.position.set(360, 300, 420);
+camera.position.set(0, 560, 500);
 var renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(window.devicePixelRatio);
 container.appendChild(renderer.domElement);
 var controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
-scene.add(new THREE.GridHelper(400, 20, 0x3a3d46, 0x262932));
+controls.target.set(0, 70, 0);
+scene.add(new THREE.GridHelper(500, 20, 0x3a3d46, 0x262932));
 scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-var dir = new THREE.DirectionalLight(0xffffff, 0.8); dir.position.set(200, 300, 260); scene.add(dir);
+var dir = new THREE.DirectionalLight(0xffffff, 0.8); dir.position.set(200, 400, 260); scene.add(dir);
+var worldGroup = new THREE.Group();
+worldGroup.rotation.x = -Math.PI / 2;  // z 轴转向上，模型底部朝下正立
+scene.add(worldGroup);
 
-var parts = [];
-function boxMesh(w, d, h, x, y, z, color) {
-  var g = new THREE.BoxGeometry(w, d, h);
-  var m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: color, roughness: 0.7, metalness: 0.1 }));
-  m.position.set(x, y, z); parts.push(m); scene.add(m); return m;
+function addBox(w, d, h, x, y, z, color, parent) {
+  var m = new THREE.Mesh(new THREE.BoxGeometry(w, d, h), new THREE.MeshStandardMaterial({ color: color, roughness: 0.7, metalness: 0.1 }));
+  m.position.set(x, y, z); (parent || worldGroup).add(m); return m;
 }
-function ringMesh(r, tube, x, y, z, color) {
-  var g = new THREE.TorusGeometry(r, tube, 24, 64);
-  var m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: color, roughness: 0.5, metalness: 0.4 }));
-  m.position.set(x, y, z); parts.push(m); scene.add(m); return m;
+function addRing(r, tube, x, y, z, color, parent) {
+  var m = new THREE.Mesh(new THREE.TorusGeometry(r, tube, 24, 64), new THREE.MeshStandardMaterial({ color: color, roughness: 0.5, metalness: 0.4 }));
+  m.position.set(x, y, z); (parent || worldGroup).add(m); return m;
 }
-// 底板 + 培养皿托盘 + 培养板 + 立柱 + 主机
-boxMesh(470, 240, 10, 0, 0, 5, 0x26262b);
-boxMesh(150, 110, 6, -120, 0, 51, 0x404046);
-boxMesh(128, 86, 10, -120, 0, 59, 0x8fb8c9);
-[[-95,-95],[-95,95],[25,-95],[25,95]].forEach(function(p){
-  boxMesh(10, 10, 100, -120 + p[0], p[1], 55, 0x4c4c54);
-});
-boxMesh(150, 96, 70, 155, 0, 45, 0x3d3d46);
-boxMesh(70, 3, 42, 155, 49.5, 62, 0x4fc3ff);
-var ringGroup = new THREE.Group(); scene.add(ringGroup);
-var ringLow = ringMesh(90, 12, -120, 0, 10, 0xf0962f);
-var ringHigh = ringMesh(90, 12, -120, 0, 100, 0xf0962f);
-ringGroup.add(ringLow); ringGroup.add(ringHigh);
-
-function setRings(r) {
-  ringLow.geometry.dispose(); ringHigh.geometry.dispose();
-  ringLow.geometry = new THREE.TorusGeometry(r, 12, 24, 64);
-  ringHigh.geometry = new THREE.TorusGeometry(r, 12, 24, 64);
-  ringLow.position.z = 55 - r / 2; ringHigh.position.z = 55 + r / 2;
+function addCyl(r, h, x, y, z, color, parent) {
+  var m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 32), new THREE.MeshStandardMaterial({ color: color, roughness: 0.6, metalness: 0.2 }));
+  m.geometry.rotateX(Math.PI / 2);  // 局部坐标：圆柱轴沿 z（旋转后为竖直向上）
+  m.position.set(x, y, z); (parent || worldGroup).add(m); return m;
 }
-setRings(90);
-
+var current3D = [];
+function clear3D() {
+  current3D.forEach(function(m){ worldGroup.remove(m); m.geometry.dispose(); m.material.dispose(); });
+  current3D = [];
+}
+function buildSingle3D() {
+  addBox(200, 150, 10, 0, 0, 5, 0x26262b);
+  addBox(150, 110, 6, 0, 0, 16, 0x404046);
+  addBox(128, 86, 10, 0, 0, 24, 0x8fb8c9);
+  addCyl(16, 24, 0, 0, 58, 0xf0962f);
+  addCyl(18, 4, 0, 0, 46, 0x66666e);
+  addCyl(18, 4, 0, 0, 70, 0x66666e);
+}
+function buildMulti3D() {
+  addBox(470, 150, 10, 0, 0, 5, 0x26262b);
+  addBox(430, 130, 55, 0, 0, 37.5, 0x232328);
+  addBox(434, 134, 4, 0, 0, 61.5, 0x3a3a40);
+  [-140,-70,0,70,140].forEach(function(x){
+    addCyl(16, 24, x, 0, 74, 0xf0962f);
+    addCyl(18, 4, x, 0, 62, 0x66666e);
+    addCyl(18, 4, x, 0, 86, 0x66666e);
+  });
+}
+function buildPlate3D() {
+  addBox(470, 240, 10, 0, 0, 5, 0x26262b);
+  addBox(150, 110, 6, -120, 0, 51, 0x404046);
+  addBox(128, 86, 10, -120, 0, 59, 0x8fb8c9);
+  [[-95,-95],[-95,95],[25,-95],[25,95]].forEach(function(p){
+    addBox(10, 10, 100, -120 + p[0], p[1], 55, 0x4c4c54);
+  });
+  var shell = '#9aa0ab';
+  addBox(240, 6, 130, -120, -117, 70, shell);
+  addBox(6, 240, 130, -237, 0, 70, shell);
+  addBox(6, 240, 130, -3, 0, 70, shell);
+  addBox(240, 240, 6, -120, 0, 133, shell);
+  addBox(220, 18, 14, -120, 0, 151, shell);
+  addBox(40, 34, 34, 4, 0, 58, '#6b7078');
+  addRing(90, 12, -120, 0, 10, 0xf0962f);
+  addRing(90, 12, -120, 0, 100, 0xf0962f);
+  addBox(150, 96, 70, 155, 0, 45, 0x3d3d46);
+  addBox(70, 3, 42, 155, 49.5, 62, 0x4fc3ff);
+}
+function build3D(mode) {
+  clear3D();
+  if (mode === 'single') buildSingle3D();
+  else if (mode === 'multi') buildMulti3D();
+  else buildPlate3D();
+}
 function resize3d() {
-  var w = container.clientWidth, h = container.clientHeight || 360;
+  var w = container.clientWidth, h = container.clientHeight || 340;
   camera.aspect = w / h; camera.updateProjectionMatrix();
   renderer.setSize(w, h);
 }
@@ -142,99 +179,199 @@ var heatCv = document.getElementById('heatmap');
 var heatCtx = heatCv.getContext('2d');
 function colorMap(t) {
   t = Math.max(0, Math.min(1, t));
-  var stops = [[0,31,119,180],[0,180,220,255],[80,220,150,255],[250,220,90,255],[214,60,60,255]];
+  var stops = [[31,119,180],[0,180,220],[80,220,150],[250,220,90],[214,60,60]];
   var seg = t * (stops.length - 1), i = Math.min(stops.length - 2, Math.floor(seg)), f = seg - i;
   var a = stops[i], b = stops[i+1];
   return [Math.round(a[0]+(b[0]-a[0])*f), Math.round(a[1]+(b[1]-a[1])*f), Math.round(a[2]+(b[2]-a[2])*f)];
 }
-var curGrid = null, curVariant = null;
+var curHeat = null, heatX = null, heatY = null, heatOverlays = [];
 function drawHeatmap() {
-  var g = curGrid; if (!g) return;
-  var cols = g.x_mm.length, rows = g.y_mm.length;
+  if (!curHeat) return;
+  var cols = curHeat.length ? curHeat[0].length : 0, rows = curHeat.length;
+  if (!cols) return;
   var off = document.createElement('canvas'); off.width = cols; off.height = rows;
   var octx = off.getContext('2d');
   var img = octx.createImageData(cols, rows);
-  var vmax = 15, vmin = 0;
-  for (var y = 0; y < rows; y++) {
-    for (var x = 0; x < cols; x++) {
-      var v = g.b_mT[y][x];
-      var c = colorMap((v - vmin) / (vmax - vmin));
-      var p = (y * cols + x) * 4;
-      img.data[p] = c[0]; img.data[p+1] = c[1]; img.data[p+2] = c[2]; img.data[p+3] = 255;
-    }
+  var vmax = heatVmax(), vmin = 0;
+  for (var y = 0; y < rows; y++) for (var x = 0; x < cols; x++) {
+    var c = colorMap((curHeat[y][x] - vmin) / (vmax - vmin));
+    var p = (y * cols + x) * 4;
+    img.data[p]=c[0]; img.data[p+1]=c[1]; img.data[p+2]=c[2]; img.data[p+3]=255;
   }
   octx.putImageData(img, 0, 0);
   var w = heatCv.clientWidth, h = heatCv.clientHeight;
   heatCv.width = w * devicePixelRatio; heatCv.height = h * devicePixelRatio;
   heatCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
   heatCtx.drawImage(off, 0, 0, w, h);
-  if (document.getElementById('showRegions').checked) {
-    var span = g.x_mm[g.x_mm.length-1];
-    var px = function(mm){ return (mm / span / 2 + 0.5) * w; };
-    heatCtx.strokeStyle = '#ffffff'; heatCtx.lineWidth = 1.5;
-    heatCtx.strokeRect(px(-64), px(-43), px(128)-px(-64), px(86)-px(-43));
-    heatCtx.strokeStyle = '#ffd166'; heatCtx.lineWidth = 2;
-    heatCtx.strokeRect(px(-37.5), px(-37.5), px(75)-px(-37.5), px(75)-px(-37.5));
-  }
+  var px = function(mm){ return (mm - heatX[0]) / (heatX[heatX.length-1] - heatX[0]) * w; };
+  var py = function(mm){ return (1 - (mm - heatY[0]) / (heatY[heatY.length-1] - heatY[0])) * h; };
+  heatOverlays.forEach(function(o){
+    heatCtx.strokeStyle = o.color; heatCtx.lineWidth = o.w || 1.5;
+    heatCtx.strokeRect(px(o.x0), py(o.y1), px(o.x1)-px(o.x0), py(o.y0)-py(o.y1));
+  });
   document.getElementById('legendBar').style.background =
     'linear-gradient(90deg, rgb(31,119,180), rgb(0,180,220), rgb(80,220,150), rgb(250,220,90), rgb(214,60,60))';
   document.getElementById('legendText').textContent = '0 mT — ' + vmax + ' mT';
 }
+function heatVmax() { return curMode === 'plate' ? 15 : 20; }
 window.addEventListener('resize', drawHeatmap);
 
-/* ---------- 轴线曲线 ---------- */
+/* ---------- 曲线图 ---------- */
 var axCv = document.getElementById('axisChart');
 var axCtx = axCv.getContext('2d');
-function drawAxis() {
-  var a = S.main_axis;
+function drawCurves() {
+  var series = curveData();
   var w = axCv.clientWidth, h = axCv.clientHeight;
   axCv.width = w * devicePixelRatio; axCv.height = h * devicePixelRatio;
   axCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
   axCtx.clearRect(0, 0, w, h);
-  var padL = 44, padR = 12, padT = 14, padB = 26;
+  var padL = 46, padR = 12, padT = 14, padB = 26;
   var pw = w - padL - padR, ph = h - padT - padB;
-  var zmin = a.z_mm[0], zmax = a.z_mm[a.z_mm.length-1];
-  var bmax = 16;
-  axCtx.strokeStyle = '#4a4f58'; axCtx.beginPath();
-  axCtx.moveTo(padL, padT); axCtx.lineTo(padL, h - padB); axCtx.lineTo(w - padR, h - padB); axCtx.stroke();
+  var xmin = series.x[0], xmax = series.x[series.x.length-1];
+  var ymax = series.ymax || 20;
   axCtx.fillStyle = '#9aa0ab'; axCtx.font = '11px sans-serif'; axCtx.textAlign = 'right';
-  for (var b = 0; b <= 15; b += 5) {
-    var y = padT + ph * (1 - b / bmax);
-    axCtx.fillText(b + ' mT', padL - 5, y + 4);
-    axCtx.strokeStyle = '#262932'; axCtx.beginPath(); axCtx.moveTo(padL, y); axCtx.lineTo(w - padR, y); axCtx.stroke();
+  for (var v = 0; v <= ymax; v += 5) {
+    var yy = padT + ph * (1 - v / ymax);
+    axCtx.fillText(v + ' mT', padL - 5, yy + 4);
+    axCtx.strokeStyle = '#262932'; axCtx.beginPath(); axCtx.moveTo(padL, yy); axCtx.lineTo(w - padR, yy); axCtx.stroke();
   }
-  axCtx.strokeStyle = '#f0962f'; axCtx.lineWidth = 2; axCtx.beginPath();
-  for (var i = 0; i < a.z_mm.length; i++) {
-    var x = padL + (a.z_mm[i] - zmin) / (zmax - zmin) * pw;
-    var y = padT + ph * (1 - a.b_mT[i] / bmax);
-    if (i === 0) axCtx.moveTo(x, y); else axCtx.lineTo(x, y);
+  if (series.band) {
+    var by0 = padT + ph * (1 - series.band[0] / ymax), by1 = padT + ph * (1 - series.band[1] / ymax);
+    axCtx.fillStyle = 'rgba(240,150,47,.12)';
+    axCtx.fillRect(padL, Math.min(by0, by1), pw, Math.abs(by1 - by0));
   }
-  axCtx.stroke();
+  series.lines.forEach(function(line, li){
+    axCtx.strokeStyle = line.color; axCtx.lineWidth = li === 0 ? 2.2 : 1.4; axCtx.beginPath();
+    for (var i = 0; i < series.x.length; i++) {
+      var x = padL + (series.x[i] - xmin) / (xmax - xmin) * pw;
+      var y = padT + ph * (1 - line.y[i] / ymax);
+      if (i === 0) axCtx.moveTo(x, y); else axCtx.lineTo(x, y);
+    }
+    axCtx.stroke();
+  });
   axCtx.fillStyle = '#9aa0ab'; axCtx.textAlign = 'center';
-  axCtx.fillText('z (mm) — 0 为培养板平面', padL + pw / 2, h - 8);
+  axCtx.fillText(series.xlabel, padL + pw / 2, h - 8);
 }
-window.addEventListener('resize', drawAxis);
+window.addEventListener('resize', drawCurves);
 
-/* ---------- 数据表与统计 ---------- */
-function fillStats(v) {
-  var r5 = v.region_5x5, rp = v.region_full_plate, cu = v.copper_at_4A;
-  var cards = [
-    ['中心场强', v.center_mT.toFixed(1) + ' <small>mT</small>'],
-    ['5×5 孔区 min/mean', r5.min_mT.toFixed(1) + ' / ' + r5.mean_mT.toFixed(1) + ' <small>mT</small>'],
-    ['5×5 孔区 CV', r5.cv_pct.toFixed(1) + ' <small>%</small>'],
-    ['整板 min/CV', rp.min_mT.toFixed(1) + ' <small>mT</small> / ' + rp.cv_pct.toFixed(1) + ' <small>%</small>'],
-    ['需 NI', Math.round(v.ni_A_turns) + ' <small>A·匝</small>'],
-    ['功耗 @4A', cu.power_W.toFixed(0) + ' <small>W</small>'],
-    ['铜重', cu.copper_mass_kg.toFixed(1) + ' <small>kg</small>'],
-    ['3min 温升（估）', cu.adiabatic_dT_3min_K.toFixed(1) + ' <small>K</small>'],
-    ['验收', (r5.min_mT >= 13 && r5.cv_pct <= 10) ? '达标' : '边缘衰减'],
-  ];
+/* ---------- 模式数据映射 ---------- */
+var curMode = 'single';
+function curveData() {
+  if (curMode === 'single') {
+    var m = S.modes.single;
+    return { x: m.axis_z_mm, ymax: 25, band: [0, 0], xlabel: '距线圈表面 z (mm)',
+      lines: [{ color: '#f0962f', y: m.axis_b_mT }] };
+  }
+  if (curMode === 'multi') {
+    var mm = S.modes.multi;
+    return { x: mm.plane_z_mm, ymax: 20, band: [8, 12], xlabel: '深度 z (mm)（阴影=肺部 8–12 mm）',
+      lines: mm.depth_curves.map(function(c, i){
+        return { color: ['#4fc3ff','#f0962f','#ffd166','#7dd87d','#d68bff'][i], y: c.b_mT };
+      }) };
+  }
+  var p = S.modes.plate;
+  return { x: p.main_axis.z_mm, ymax: 16, band: [0, 0], xlabel: 'z (mm) — 0 为培养板平面',
+    lines: [{ color: '#f0962f', y: p.main_axis.b_mT }] };
+}
+function fillStats() {
+  var cards;
+  if (curMode === 'single') {
+    var m = S.modes.single;
+    cards = [
+      ['表面 4 mm', m.params.surface_mT_at_4mm + ' <small>mT</small>'],
+      ['校准 NI', m.params.ni_A_turns + ' <small>A·匝</small>'],
+      ['10 mm 深度', m.axis_b_mT[20].toFixed(1) + ' <small>mT</small>'],
+      ['15 mm 深度', m.axis_b_mT[30].toFixed(1) + ' <small>mT</small>'],
+      ['径向 10 mm @4mm', m.radial_b_mT_4mm[20].toFixed(1) + ' <small>mT</small>'],
+      ['工作区', 'φ20 <small>mm</small>'],
+    ];
+  } else if (curMode === 'multi') {
+    var mm = S.modes.multi;
+    var at10 = mm.depth_curves.map(function(c){ return c.b_mT[10]; });
+    var at12 = mm.depth_curves.map(function(c){ return c.b_mT[12]; });
+    cards = [
+      ['通道数', '5'],
+      ['间距', mm.params.pitch_mm + ' <small>mm</small>'],
+      ['10 mm 深度范围', Math.min.apply(null, at10).toFixed(1) + '–' + Math.max.apply(null, at10).toFixed(1) + ' <small>mT</small>'],
+      ['12 mm 深度范围', Math.min.apply(null, at12).toFixed(1) + '–' + Math.max.apply(null, at12).toFixed(1) + ' <small>mT</small>'],
+      ['通道间一致性', '每路独立标定'],
+      ['肺部目标', '8–12 mm ≥15 mT（待实测）'],
+    ];
+  } else {
+    var v = S.modes.plate.variants[2], r5 = v.region_5x5, rp = v.region_full_plate;
+    cards = [
+      ['中心场强', v.center_mT.toFixed(1) + ' <small>mT</small>'],
+      ['5×5 孔区 min/mean', r5.min_mT.toFixed(1) + ' / ' + r5.mean_mT.toFixed(1) + ' <small>mT</small>'],
+      ['5×5 孔区 CV', r5.cv_pct.toFixed(1) + ' <small>%</small>'],
+      ['整板 min/CV', rp.min_mT.toFixed(1) + ' <small>mT</small> / ' + rp.cv_pct.toFixed(1) + ' <small>%</small>'],
+      ['需 NI', Math.round(v.ni_A_turns) + ' <small>A·匝</small>'],
+      ['功耗 @4A', v.copper_at_4A.power_W.toFixed(0) + ' <small>W</small>'],
+    ];
+  }
   document.getElementById('stats').innerHTML = cards.map(function(c){
     return '<div class="card"><div class="k">' + c[0] + '</div><div class="v">' + c[1] + '</div></div>';
   }).join('');
 }
+function selectMode(mode) {
+  curMode = mode;
+  document.querySelectorAll('#modeTabs .tab').forEach(function(t){ t.classList.toggle('active', t.dataset.mode === mode); });
+  build3D(mode);
+  if (mode === 'single') {
+    var m = S.modes.single;
+    curHeat = m.plane_b_mT; heatX = m.plane_x_mm; heatY = m.plane_z_mm;
+    heatOverlays = [{ x0:-10, y0:0, x1:10, y1:20, color:'#ffffff', w:1.2 }];
+    document.getElementById('structTitle').textContent = '结构示意（E 形铁芯贴敷线圈）';
+    document.getElementById('heatTitle').textContent = '截面场分布 r–z（mT）';
+    document.getElementById('curveTitle').textContent = '轴心线场强 B(z)';
+    document.getElementById('curveNote').textContent = 'z=0 为线圈表面；细胞植入背侧皮下，目标深度 8–12 mm。';
+    document.getElementById('modeControls').innerHTML = '';
+  } else if (mode === 'multi') {
+    var mm = S.modes.multi;
+    curHeat = mm.plane_b_mT; heatX = mm.plane_x_mm; heatY = mm.plane_z_mm;
+    heatOverlays = [{ x0:-175, y0:0, x1:175, y1:20, color:'#ffffff', w:1.2 }];
+    document.getElementById('structTitle').textContent = '结构示意（5 通道阵列）';
+    document.getElementById('heatTitle').textContent = '沿通道方向 x–深度 z 场分布（mT）';
+    document.getElementById('curveTitle').textContent = '各通道中心深度场强 B(z)';
+    document.getElementById('curveNote').textContent = '阴影带=肺部目标 8–12 mm；曲线为通道 1–5 中心线。';
+    document.getElementById('modeControls').innerHTML = '';
+  } else {
+    var p = S.modes.plate;
+    curHeat = p.main_grid.b_mT; heatX = p.main_grid.x_mm; heatY = p.main_grid.y_mm;
+    heatOverlays = [
+      { x0:-64, y0:-43, x1:64, y1:43, color:'#ffffff', w:1.5 },
+      { x0:-37.5, y0:-37.5, x1:37.5, y1:37.5, color:'#ffd166', w:2 }
+    ];
+    document.getElementById('structTitle').textContent = '结构示意（Helmholtz 模块 + 一体化外壳）';
+    document.getElementById('heatTitle').textContent = '中心平面磁场分布（mT）';
+    document.getElementById('curveTitle').textContent = '沿轴心线场强 B(z)';
+    document.getElementById('curveNote').textContent = 'z=0 为培养板所在中心平面；两环位于 z=±R/2（间距=R）。';
+    var selHtml = '<label>线圈半径 R：</label><select id="radiusSel">' +
+      p.variants.map(function(v){ return '<option value="' + v.radius_mm + '">R=' + v.radius_mm + ' mm</option>'; }).join('') + '</select>' +
+      '<label style="margin-left:6px"><input type="checkbox" id="showRegions" checked> 显示 5×5 孔区/整板框</label>';
+    document.getElementById('modeControls').innerHTML = selHtml;
+    document.getElementById('radiusSel').addEventListener('change', function(){
+      var r = Number(this.value);
+      var v = p.variants.filter(function(x){ return x.radius_mm === r; })[0] || p.variants[2];
+      curHeat = v.grid.b_mT; heatX = v.grid.x_mm; heatY = v.grid.y_mm;
+      drawHeatmap(); fillStats();
+    });
+    document.getElementById('showRegions').addEventListener('change', function(){
+      heatOverlays = this.checked ? [
+        { x0:-64, y0:-43, x1:64, y1:43, color:'#ffffff', w:1.5 },
+        { x0:-37.5, y0:-37.5, x1:37.5, y1:37.5, color:'#ffd166', w:2 }
+      ] : [];
+      drawHeatmap();
+    });
+  }
+  drawHeatmap(); drawCurves(); fillStats();
+}
+document.querySelectorAll('#modeTabs .tab').forEach(function(t){
+  t.addEventListener('click', function(){ selectMode(t.dataset.mode); });
+});
+
 function fillTables() {
-  var rows = S.variants.map(function(v){
+  var p = S.modes.plate;
+  var rows = p.variants.map(function(v){
     return '<tr><td>R=' + v.radius_mm + ' mm</td><td>' + v.region_5x5.min_mT.toFixed(1) + '</td><td>' +
       v.region_5x5.mean_mT.toFixed(1) + '</td><td>' + v.region_5x5.cv_pct.toFixed(1) + '%</td><td>' +
       v.region_full_plate.min_mT.toFixed(1) + '</td><td>' + v.region_full_plate.cv_pct.toFixed(1) + '%</td><td>' +
@@ -242,29 +379,17 @@ function fillTables() {
   }).join('');
   document.getElementById('variantTable').innerHTML =
     '<tr><th>半径</th><th>5×5 min</th><th>5×5 mean</th><th>5×5 CV</th><th>整板 min</th><th>整板 CV</th><th>NI</th><th>功耗</th></tr>' + rows;
-  var trows = S.thermal_main.map(function(t){
+  var trows = p.thermal_main.map(function(t){
     return '<tr><td>' + t.J_A_per_mm2 + ' A/mm²</td><td>' + t.current_A + '</td><td>' + t.turns_per_coil + '</td><td>' +
       t.resistance_ohm + '</td><td>' + t.power_W + '</td><td>' + t.copper_mass_kg + '</td><td>' + t.dT_3min_with_sink_K + '</td></tr>';
   }).join('');
   document.getElementById('thermalTable').innerHTML =
     '<tr><th>电流密度</th><th>电流</th><th>匝/环</th><th>电阻 Ω</th><th>功耗 W</th><th>铜重 kg</th><th>3min 温升 K</th></tr>' + trows;
+  document.getElementById('thermalWarn').textContent =
+    '热优化：15 mT 全档功耗高（R=90 约 117 W @4 A）；建议常用档 12 mT（NI≈1200，约 75 W）+ 非金属外壳/自然对流，液面温升 <0.5 ℃ 为样机验收红线。';
 }
-
-var sel = document.getElementById('radiusSel');
-S.variants.forEach(function(v){ sel.add(new Option('R=' + v.radius_mm + ' mm', v.radius_mm)); });
-function selectVariant() {
-  var r = Number(sel.value);
-  curVariant = S.variants.filter(function(v){ return v.radius_mm === r; })[0] || S.variants[2];
-  curGrid = curVariant.grid;
-  setRings(r);
-  drawHeatmap();
-  fillStats(curVariant);
-}
-sel.addEventListener('change', selectVariant);
-document.getElementById('showRegions').addEventListener('change', drawHeatmap);
-selectVariant();
+selectMode('single');
 fillTables();
-drawAxis();
 </script>
 </body>
 </html>
