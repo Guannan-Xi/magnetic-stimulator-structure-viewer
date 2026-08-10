@@ -80,10 +80,12 @@ td:first-child, th:first-child { text-align:left; }
 </div>
 
 <script src="sim_data.js"></script>
+<script src="data.js?v=1786329637"></script>
 <script src="lib/three.min.js"></script>
 <script src="lib/OrbitControls.js"></script>
 <script>
 var S = window.SIM_DATA;
+var modelVariants = window.VARIANT_DATA.variants;
 document.getElementById('metaLine').textContent = S.meta.title + '（' + S.meta.method + '）';
 
 /* ---------- 3D 结构（局部坐标 z 向上，渲染时整体旋转为正立） ---------- */
@@ -91,80 +93,51 @@ var container = document.getElementById('viewer');
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(0x101216);
 var camera = new THREE.PerspectiveCamera(50, 1, 1, 3000);
-camera.position.set(0, 560, 500);
+camera.position.set(0, 0.9, 0.85);
 var renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(window.devicePixelRatio);
 container.appendChild(renderer.domElement);
 var controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
-controls.target.set(0, 70, 0);
-scene.add(new THREE.GridHelper(500, 20, 0x3a3d46, 0x262932));
+controls.target.set(0, 0.06, 0);
+scene.add(new THREE.GridHelper(0.6, 20, 0x3a3d46, 0x262932));
 scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-var dir = new THREE.DirectionalLight(0xffffff, 0.8); dir.position.set(200, 400, 260); scene.add(dir);
+var dir = new THREE.DirectionalLight(0xffffff, 0.8); dir.position.set(0.3, 0.6, 0.4); scene.add(dir);
 var worldGroup = new THREE.Group();
 worldGroup.rotation.x = -Math.PI / 2;  // z 轴转向上，模型底部朝下正立
+worldGroup.scale.set(0.001, 0.001, 0.001);
 scene.add(worldGroup);
 
-function addBox(w, d, h, x, y, z, color, parent) {
-  var m = new THREE.Mesh(new THREE.BoxGeometry(w, d, h), new THREE.MeshStandardMaterial({ color: color, roughness: 0.7, metalness: 0.1 }));
-  m.position.set(x, y, z); (parent || worldGroup).add(m); return m;
-}
-function addRing(r, tube, x, y, z, color, parent) {
-  var m = new THREE.Mesh(new THREE.TorusGeometry(r, tube, 24, 64), new THREE.MeshStandardMaterial({ color: color, roughness: 0.5, metalness: 0.4 }));
-  m.position.set(x, y, z); (parent || worldGroup).add(m); return m;
-}
-function addCyl(r, h, x, y, z, color, parent) {
-  var m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 32), new THREE.MeshStandardMaterial({ color: color, roughness: 0.6, metalness: 0.2 }));
-  m.geometry.rotateX(Math.PI / 2);  // 局部坐标：圆柱轴沿 z（旋转后为竖直向上）
-  m.position.set(x, y, z); (parent || worldGroup).add(m); return m;
-}
-var current3D = [];
 function clear3D() {
-  current3D.forEach(function(m){ worldGroup.remove(m); m.geometry.dispose(); m.material.dispose(); });
-  current3D = [];
+  while (worldGroup.children.length) {
+    var c = worldGroup.children.pop();
+    if (c.geometry) c.geometry.dispose();
+    if (c.material) c.material.dispose();
+  }
 }
-function buildSingle3D() {
-  addBox(200, 150, 10, 0, 0, 5, 0x26262b);
-  addBox(150, 110, 6, 0, 0, 16, 0x404046);
-  addBox(128, 86, 10, 0, 0, 24, 0x8fb8c9);
-  addCyl(16, 24, 0, 0, 58, 0xf0962f);
-  addCyl(18, 4, 0, 0, 46, 0x66666e);
-  addCyl(18, 4, 0, 0, 70, 0x66666e);
-}
-function buildMulti3D() {
-  addBox(470, 150, 10, 0, 0, 5, 0x26262b);
-  addBox(430, 130, 55, 0, 0, 37.5, 0x232328);
-  addBox(434, 134, 4, 0, 0, 61.5, 0x3a3a40);
-  [-140,-70,0,70,140].forEach(function(x){
-    addCyl(16, 24, x, 0, 74, 0xf0962f);
-    addCyl(18, 4, x, 0, 62, 0x66666e);
-    addCyl(18, 4, x, 0, 86, 0x66666e);
-  });
-}
-function buildPlate3D() {
-  addBox(470, 240, 10, 0, 0, 5, 0x26262b);
-  addBox(150, 110, 6, -120, 0, 51, 0x404046);
-  addBox(128, 86, 10, -120, 0, 59, 0x8fb8c9);
-  [[-95,-95],[-95,95],[25,-95],[25,95]].forEach(function(p){
-    addBox(10, 10, 100, -120 + p[0], p[1], 55, 0x4c4c54);
-  });
-  var shell = '#9aa0ab';
-  addBox(240, 6, 130, -120, -117, 70, shell);
-  addBox(6, 240, 130, -237, 0, 70, shell);
-  addBox(6, 240, 130, -3, 0, 70, shell);
-  addBox(240, 240, 6, -120, 0, 133, shell);
-  addBox(220, 18, 14, -120, 0, 151, shell);
-  addBox(40, 34, 34, 4, 0, 58, '#6b7078');
-  addRing(90, 12, -120, 0, 10, 0xf0962f);
-  addRing(90, 12, -120, 0, 100, 0xf0962f);
-  addBox(150, 96, 70, 155, 0, 45, 0x3d3d46);
-  addBox(70, 3, 42, 155, 49.5, 62, 0x4fc3ff);
-}
-function build3D(mode) {
+function loadRealModel(mode) {
   clear3D();
-  if (mode === 'single') buildSingle3D();
-  else if (mode === 'multi') buildMulti3D();
-  else buildPlate3D();
+  var v = modelVariants[mode];
+  if (!v) return;
+  v.meshes.forEach(function (m) {
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(m.positions.flat(), 3));
+    geo.setIndex(m.indices);
+    geo.computeVertexNormals();
+    var colors = new Float32Array(m.colors.length * 3);
+    m.colors.forEach(function (hex, i) {
+      var n = parseInt(hex.slice(1), 16);
+      colors[i * 3] = ((n >> 16) & 255) / 255;
+      colors[i * 3 + 1] = ((n >> 8) & 255) / 255;
+      colors[i * 3 + 2] = (n & 255) / 255;
+    });
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    var mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, metalness: 0.05 });
+    var mesh = new THREE.Mesh(geo, mat);
+    mesh.userData.group = m.group;
+    mesh.userData.color = m.color;
+    worldGroup.add(mesh);
+  });
 }
 function resize3d() {
   var w = container.clientWidth, h = container.clientHeight || 340;
@@ -315,12 +288,12 @@ function fillStats() {
 function selectMode(mode) {
   curMode = mode;
   document.querySelectorAll('#modeTabs .tab').forEach(function(t){ t.classList.toggle('active', t.dataset.mode === mode); });
-  build3D(mode);
+  loadRealModel(mode);
   if (mode === 'single') {
     var m = S.modes.single;
     curHeat = m.plane_b_mT; heatX = m.plane_x_mm; heatY = m.plane_z_mm;
     heatOverlays = [{ x0:-10, y0:0, x1:10, y1:20, color:'#ffffff', w:1.2 }];
-    document.getElementById('structTitle').textContent = '结构示意（E 形铁芯贴敷线圈）';
+    document.getElementById('structTitle').textContent = '结构模型（单只模式，与结构查看器一致）';
     document.getElementById('heatTitle').textContent = '截面场分布 r–z（mT）';
     document.getElementById('curveTitle').textContent = '轴心线场强 B(z)';
     document.getElementById('curveNote').textContent = 'z=0 为线圈表面；细胞植入背侧皮下，目标深度 8–12 mm。';
@@ -329,7 +302,7 @@ function selectMode(mode) {
     var mm = S.modes.multi;
     curHeat = mm.plane_b_mT; heatX = mm.plane_x_mm; heatY = mm.plane_z_mm;
     heatOverlays = [{ x0:-175, y0:0, x1:175, y1:20, color:'#ffffff', w:1.2 }];
-    document.getElementById('structTitle').textContent = '结构示意（5 通道阵列）';
+    document.getElementById('structTitle').textContent = '结构模型（多只模式，与结构查看器一致）';
     document.getElementById('heatTitle').textContent = '沿通道方向 x–深度 z 场分布（mT）';
     document.getElementById('curveTitle').textContent = '各通道中心深度场强 B(z)';
     document.getElementById('curveNote').textContent = '阴影带=肺部目标 8–12 mm；曲线为通道 1–5 中心线。';
@@ -341,7 +314,7 @@ function selectMode(mode) {
       { x0:-64, y0:-43, x1:64, y1:43, color:'#ffffff', w:1.5 },
       { x0:-37.5, y0:-37.5, x1:37.5, y1:37.5, color:'#ffd166', w:2 }
     ];
-    document.getElementById('structTitle').textContent = '结构示意（Helmholtz 模块 + 一体化外壳）';
+    document.getElementById('structTitle').textContent = '结构模型（体外模式，与结构查看器一致）';
     document.getElementById('heatTitle').textContent = '中心平面磁场分布（mT）';
     document.getElementById('curveTitle').textContent = '沿轴心线场强 B(z)';
     document.getElementById('curveNote').textContent = 'z=0 为培养板所在中心平面；两环位于 z=±R/2（间距=R）。';
