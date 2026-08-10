@@ -388,7 +388,9 @@ function fillTables() {
   document.getElementById('thermalWarn').textContent =
     '热优化：15 mT 全档功耗高（R=90 约 117 W @4 A）；建议常用档 12 mT（NI≈1200，约 75 W）+ 非金属外壳/自然对流，液面温升 <0.5 ℃ 为样机验收红线。';
 }
-selectMode('single');
+var modeParam = new URLSearchParams(location.search).get('mode');
+var initialMode = ['single', 'multi', 'plate'].indexOf(modeParam) >= 0 ? modeParam : 'single';
+selectMode(initialMode);
 fillTables();
 </script>
 </body>
