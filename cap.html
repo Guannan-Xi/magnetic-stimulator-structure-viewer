@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>穿戴式 TMS 固定帽 · 结构预览 V0.2</title>
+<style>
+  :root { --bg:#15161a; --panel:#1e2026; --line:#33363f; --text:#e8e8ec; --muted:#9aa0ab; --accent:#c8792f; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:"Microsoft YaHei","PingFang SC",sans-serif; height:100vh; display:flex; flex-direction:column; }
+  header { display:flex; align-items:center; gap:16px; padding:10px 18px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  header h1 { font-size:16px; font-weight:600; }
+  header .meta { color:var(--muted); font-size:12px; }
+  header a { color:var(--accent); text-decoration:none; font-size:12px; }
+  header a:hover { text-decoration:underline; }
+  main { flex:1; display:flex; min-height:0; }
+  #viewer { flex:1; position:relative; }
+  #viewer canvas { display:block; width:100%; height:100%; }
+  aside { width:320px; background:var(--panel); border-left:1px solid var(--line); padding:14px; overflow:auto; }
+  h2 { font-size:14px; margin:10px 0 6px; }
+  .dims { color:var(--muted); font-size:12px; margin-bottom:10px; white-space:pre-line; line-height:1.7; }
+  .legend { list-style:none; }
+  .legend li { border-bottom:1px solid rgba(255,255,255,.05); }
+  .legend li.hidden { opacity:.6; }
+  .legend-btn { all:unset; display:flex; align-items:center; gap:8px; width:100%; padding:5px 0; font-size:12px; color:var(--text); cursor:pointer; }
+  .legend-btn:focus-visible { outline:1px solid var(--accent); outline-offset:2px; }
+  .legend-state { margin-left:auto; color:var(--muted); font-size:11px; flex:none; }
+  .swatch { width:14px; height:14px; border-radius:3px; flex:none; border:1px solid var(--line); }
+  .controls { margin-top:14px; display:flex; flex-direction:column; gap:8px; }
+  .controls label { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); cursor:pointer; }
+  .controls button { padding:7px; border:1px solid var(--line); background:transparent; color:var(--text); border-radius:6px; cursor:pointer; font-size:12px; }
+  .rotate-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; }
+  .controls button:hover { border-color:var(--accent); }
+  .explode-row { display:flex; align-items:center; gap:8px; }
+  .explode-row input[type=range] { flex:1; }
+  .explode-row output { color:var(--text); font-size:12px; min-width:34px; text-align:right; }
+  .note { font-size:11px; color:var(--muted); margin-top:12px; line-height:1.6; }
+  footer { border-top:1px solid var(--line); padding:6px 18px; color:var(--muted); font-size:11px; }
+  .fatal { padding:18px; color:#ff9b8f; font-size:13px; line-height:1.7; }
+</style>
+</head>
+<body>
+<header>
+  <h1>穿戴式 TMS 固定帽 · 结构预览</h1>
+  <span class="meta">V0.2 概念参数修订 · 按 Opus 5 评审整改</span>
+  <a href="index.html">← 返回主机结构查看器</a>
+  <a href="https://quanland.feishu.cn/wiki/TQX5wNvx3iyW4xkGZOCcIDBAnIb" target="_blank">需求储备文档</a>
+</header>
+<main>
+  <div id="viewer"></div>
+  <aside>
+    <h2>固定帽（专用头戴式）</h2>
+    <div class="dims">头围适配：540–590 mm（S/M/L 或连续调节，示意）
+帽体外径：约 205 mm，覆盖头顶至耳上
+线圈固定座：C3（受试者左侧 M1）定位，快拆结构
+标准 8 字线圈：双环同平面，总宽 92 mm（示意）
+重量目标：帽体 ≤250 g（不含线圈）
+佩戴目标：≥30 min 无明显压迫不适</div>
+    <ul class="legend" id="legend" aria-label="部件显示开关"></ul>
+    <div class="controls">
+      <div class="rotate-row">
+        <button id="rotLeft">⟲ 左旋</button>
+        <button id="rotRight">⟳ 右旋</button>
+        <button id="tiltUp">↑ 上倾</button>
+        <button id="tiltDown">↓ 下倾</button>
+        <button id="zoomIn">+ 放大</button>
+        <button id="zoomOut">− 缩小</button>
+      </div>
+      <div class="rotate-row">
+        <button id="viewUpright">⬇ 正视（直立佩戴）</button>
+        <button id="viewOblique">◉ 立体视角</button>
+      </div>
+      <div class="explode-row">
+        <label for="explode">拆解观察</label>
+        <input type="range" id="explode" min="0" max="100" value="0" aria-label="拆解观察百分比">
+        <output id="explodeVal" for="explode">0%</output>
+      </div>
+      <button id="showAll">全部显示</button>
+      <button id="resetAll">复位全部</button>
+      <label><input type="checkbox" id="autoRotate" checked> 自动旋转</label>
+      <label><input type="checkbox" id="wireframe"> 线框显示</label>
+      <label><input type="checkbox" id="grid" checked> 网格与坐标轴</label>
+    </div>
+    <div class="note">说明：本模型为概念结构示意，非工程尺寸。线圈、固定座与帽体均可在图例中单独隐藏；拖动“拆解观察”可查看内衬与装配关系（100% 对应约 150 mm 分离位移）。下一版将按头模扫描数据细化曲面。</div>
+  </aside>
+</main>
+<footer>左键拖动旋转 · 滚轮缩放 · 右键平移 · 方向键旋转 · +/− 缩放。模型为参数初稿，供结构评审。</footer>
+
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+<script>
+(function () {
+  var container = document.getElementById('viewer');
+  function fatal(msg) {
+    var d = document.createElement('div');
+    d.className = 'fatal';
+    d.textContent = msg;
+    container.appendChild(d);
+  }
+  if (typeof THREE === 'undefined') {
+    fatal('三维库加载失败：请确认 lib/three.min.js 与 lib/OrbitControls.js 存在，并通过本地 HTTP 服务打开本页。');
+    return;
+  }
+
+  var PALETTE = {
+    bg: 0x15161a,
+    head: 0xb9bec7,
+    liner: 0x6fbf8f,
+    linerInner: 0x4e8f68,
+    shell: 0xc8792f,
+    shellInner: 0x8f5a22,
+    mount: 0x5b8dd9,
+    mountInner: 0x3c6196,
+    mountPlate: 0x6f9ce0,
+    mountLug: 0x7aa5e8,
+    latch: 0xe0b94a,
+    coil: 0xd95b6f,
+    coilCasing: 0x7d3b4d,
+    coilBridge: 0x8c4a5a,
+    mark: 0xe0b94a,
+    strap: 0x8a7fa8,
+    cable: 0x6d7683,
+    cableDark: 0x565d66,
+    route: 0x9aa7b3,
+    gridA: 0x3a3d46,
+    gridB: 0x262932
+  };
+
+  var scene, camera, renderer, controls;
+  try {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(PALETTE.bg);
+
+    camera = new THREE.PerspectiveCamera(50, 1, 0.01, 100);
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(renderer.domElement);
+
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    if ('enableKeys' in controls) controls.enableKeys = false;
+  } catch (err) {
+    fatal('3D 渲染初始化失败：' + (err && err.message ? err.message : String(err)) + '（请确认浏览器支持 WebGL）');
+    return;
+  }
+
+  var gridHelper = new THREE.GridHelper(1, 20, PALETTE.gridA, PALETTE.gridB);
+  scene.add(gridHelper);
+  var axesHelper = new THREE.AxesHelper(0.2);
+  scene.add(axesHelper);
+
+  var ambient = new THREE.AmbientLight(0xffffff, 0.5);
+  scene.add(ambient);
+  var hemi = new THREE.HemisphereLight(0xffffff, 0x30303a, 0.35);
+  scene.add(hemi);
+  var dir = new THREE.DirectionalLight(0xffffff, 0.85);
+  dir.position.set(1.5, 2.5, 1.5);
+  scene.add(dir);
+  var dir2 = new THREE.DirectionalLight(0xffffff, 0.35);
+  dir2.position.set(-1, -0.5, -1);
+  scene.add(dir2);
+
+  var assembly = new THREE.Group();
+  assembly.scale.set(0.001, 0.001, 0.001);
+  scene.add(assembly);
+
+  var parts = [];
+  var hidden = {};
+  var meshesByPart = {};
+
+  function addPart(name, color, explodeDir) {
+    var g = new THREE.Group();
+    g.userData.part = name;
+    g.userData.explode = explodeDir;
+    assembly.add(g);
+    parts.push({ name: name, group: g, color: color });
+    meshesByPart[name] = [];
+    return g;
+  }
+
+  function mesh(geo, color, parent, opacity) {
+    var mat = new THREE.MeshLambertMaterial({
+      color: color,
+      side: THREE.DoubleSide,
+      transparent: opacity !== undefined,
+      opacity: opacity === undefined ? 1 : opacity
+    });
+    var m = new THREE.Mesh(geo, mat);
+    if (parent) parent.add(m);
+    meshesByPart[parent.userData.part].push(m);
+    return m;
+  }
+
+  var v3 = function (x, y, z) { return new THREE.Vector3(x, y, z); };
+  var UP = v3(0, 1, 0);
+
+  // ---------- 头部模型（参考，R88 ≈ 周长 553 mm） ----------
+  var headGroup = addPart('头部模型（参考）', PALETTE.head, v3(0, -1, 0));
+  var head = mesh(new THREE.SphereGeometry(88, 64, 48), PALETTE.head, headGroup, 0.16);
+  head.material.depthWrite = false;
+
+  // ---------- 内衬（软质减震层，壁厚 5 mm） ----------
+  var linerGroup = addPart('内衬（软质减震层）', PALETTE.liner, v3(0, 1, 0));
+  var linerOuter = mesh(new THREE.SphereGeometry(96, 64, 32, 0, Math.PI * 2, 0, 1.82), PALETTE.liner, linerGroup, 0.55);
+  var linerInner = mesh(new THREE.SphereGeometry(91, 64, 32, 0, Math.PI * 2, 0, 1.82), PALETTE.linerInner, linerGroup, 0.55);
+  linerOuter.material.depthWrite = false;
+  linerInner.material.side = THREE.BackSide;
+  linerInner.material.depthWrite = false;
+
+  // ---------- 外壳（硬质壳体，壁厚 5 mm） ----------
+  var shellGroup = addPart('外壳（硬质壳体）', PALETTE.shell, v3(0, 1.15, 0));
+  var shellOuter = new THREE.Mesh(
+    new THREE.SphereGeometry(102.5, 72, 36, 0, Math.PI * 2, 0, 1.9),
+    new THREE.MeshLambertMaterial({ color: PALETTE.shell, side: THREE.FrontSide })
+  );
+  var shellInner = new THREE.Mesh(
+    new THREE.SphereGeometry(97.5, 72, 36, 0, Math.PI * 2, 0, 1.82),
+    new THREE.MeshLambertMaterial({ color: PALETTE.shellInner, side: THREE.BackSide })
+  );
+  shellGroup.add(shellOuter);
+  shellGroup.add(shellInner);
+  meshesByPart['外壳（硬质壳体）'].push(shellOuter, shellInner);
+  var rim = mesh(new THREE.TorusGeometry(97.2, 3, 18, 96), PALETTE.shellInner, shellGroup);
+  rim.position.y = 102.5 * Math.cos(1.9);
+  rim.rotation.x = Math.PI / 2;
+
+  // ---------- C3 定位（受试者左侧 M1，冠状面 z=0） ----------
+  var c3Dir = v3(54, 84, 0).normalize();
+  var qC3 = new THREE.Quaternion().setFromUnitVectors(v3(0, 0, 1), c3Dir);
+  var qY = new THREE.Quaternion().setFromUnitVectors(UP, c3Dir);
+
+  // ---------- 线圈固定座（快拆，球面贴合鞍座） ----------
+  var mountGroup = addPart('线圈固定座（快拆）', PALETTE.mount, c3Dir.clone().multiplyScalar(1.2).add(v3(0, 0.2, 0)).normalize());
+  var saddleOuter = new THREE.Mesh(
+    new THREE.SphereGeometry(124, 48, 24, 0, Math.PI * 2, 0, 0.5),
+    new THREE.MeshLambertMaterial({ color: PALETTE.mount, side: THREE.DoubleSide })
+  );
+  var saddleInner = new THREE.Mesh(
+    new THREE.SphereGeometry(102.6, 48, 24, 0, Math.PI * 2, 0, 0.5),
+    new THREE.MeshLambertMaterial({ color: PALETTE.mountInner, side: THREE.BackSide })
+  );
+  saddleOuter.quaternion.copy(qY);
+  saddleInner.quaternion.copy(qY);
+  mountGroup.add(saddleOuter);
+  mountGroup.add(saddleInner);
+  meshesByPart['线圈固定座（快拆）'].push(saddleOuter, saddleInner);
+  var mountPos = c3Dir.clone().multiplyScalar(122);
+  var lugL = mesh(new THREE.BoxGeometry(10, 20, 18), PALETTE.mountLug, mountGroup);
+  lugL.position.copy(mountPos).add(v3(-52, 0, -6).applyQuaternion(qC3));
+  lugL.quaternion.copy(qC3);
+  var lugR = mesh(new THREE.BoxGeometry(10, 20, 18), PALETTE.mountLug, mountGroup);
+  lugR.position.copy(mountPos).add(v3(52, 0, -6).applyQuaternion(qC3));
+  lugR.quaternion.copy(qC3);
+  var latch = mesh(new THREE.CylinderGeometry(6, 6, 16, 20), PALETTE.latch, mountGroup);
+  latch.position.copy(mountPos).add(v3(0, 32, -4).applyQuaternion(qC3));
+  latch.quaternion.copy(qC3);
+
+  // ---------- 标准 8 字线圈（双环同平面，总宽 92 mm） ----------
+  var coilGroup = addPart('标准 8 字线圈（示意）', PALETTE.coil, c3Dir.clone().multiplyScalar(1.4).add(v3(0, 0.35, 0)).normalize());
+  var coilPos = mountPos;
+  var loopGeo = new THREE.TorusGeometry(22, 7, 24, 56);
+  var loopL = mesh(loopGeo, PALETTE.coil, coilGroup);
+  loopL.position.copy(coilPos).add(v3(-16, 0, 0).applyQuaternion(qC3));
+  loopL.quaternion.copy(qC3);
+  var loopR = mesh(loopGeo, PALETTE.coil, coilGroup);
+  loopR.position.copy(coilPos).add(v3(16, 0, 0).applyQuaternion(qC3));
+  loopR.quaternion.copy(qC3);
+  var casing = mesh(new THREE.BoxGeometry(92, 48, 18), PALETTE.coilCasing, coilGroup);
+  casing.position.copy(coilPos).add(v3(0, 0, -1).applyQuaternion(qC3));
+  casing.quaternion.copy(qC3);
+  var bridge = mesh(new THREE.BoxGeometry(20, 44, 16), PALETTE.coilBridge, coilGroup);
+  bridge.position.copy(coilPos).add(v3(0, 0, -2).applyQuaternion(qC3));
+  bridge.quaternion.copy(qC3);
+
+  // ---------- 10-20 定位标记（C3 左侧 / C4 右侧镜像） ----------
+  var markGroup = addPart('10-20 定位标记', PALETTE.mark, v3(0, 1, 0));
+  var markPositions = [
+    [0, 100, 0],
+    [54, 84, 0],
+    [-54, 84, 0],
+    [0, 84, 54],
+    [0, 84, -54]
+  ];
+  markPositions.forEach(function (p) {
+    var mv = v3(p[0], p[1], p[2]);
+    var mk = mesh(new THREE.SphereGeometry(5.5, 20, 16), PALETTE.mark, markGroup);
+    mk.position.copy(mv);
+    mk.userData.explode = mv.clone().normalize();
+  });
+
+  // ---------- 调节带（头围/前后环 + 下巴带，位于外壳外侧 R104） ----------
+  var strapGroup = addPart('调节带（头围/下巴）', PALETTE.strap, v3(0, 0.35, 1));
+  var ringFront = mesh(new THREE.TorusGeometry(104, 3.2, 14, 80), PALETTE.strap, strapGroup);
+  ringFront.rotation.x = Math.PI / 2;
+  var chinPts = [];
+  chinPts.push(v3(-72, -33, 66));
+  chinPts.push(v3(0, -96, 42));
+  chinPts.push(v3(72, -33, 66));
+  var chinCurve = new THREE.CatmullRomCurve3(chinPts);
+  var chin = mesh(new THREE.TubeGeometry(chinCurve, 24, 4, 10, false), PALETTE.strap, strapGroup);
+
+  // ---------- 线缆出口（后下方） ----------
+  var cableGroup = addPart('线缆出口', PALETTE.cable, v3(-0.3, 0.5, -1));
+  var cblDir = v3(-10, 30, -97).normalize();
+  var cbl = mesh(new THREE.CylinderGeometry(10, 10, 58, 24), PALETTE.cable, cableGroup);
+  cbl.position.copy(cblDir.clone().multiplyScalar(131));
+  cbl.quaternion.setFromUnitVectors(v3(0, 1, 0), cblDir);
+  var collar = mesh(new THREE.TorusGeometry(11, 3, 12, 32), PALETTE.cableDark, cableGroup);
+  collar.position.copy(cblDir.clone().multiplyScalar(103));
+  collar.quaternion.setFromUnitVectors(v3(0, 0, 1), cblDir);
+
+  // ---------- 走线槽（示意，贴壳面从线圈到线缆出口） ----------
+  var routeGroup = addPart('走线槽（示意）', PALETTE.route, v3(-0.2, 0.6, -0.8));
+  var routePts = [];
+  for (var ri = 0; ri <= 12; ri++) {
+    var rt = ri / 12;
+    routePts.push(c3Dir.clone().lerp(cblDir, rt).normalize().multiplyScalar(105));
+  }
+  var routeCurve = new THREE.CatmullRomCurve3(routePts);
+  var routeTube = mesh(new THREE.TubeGeometry(routeCurve, 24, 4.5, 10, false), PALETTE.route, routeGroup);
+  var linkPts = [
+    coilPos.clone().add(v3(0, 0, -9).applyQuaternion(qC3)),
+    c3Dir.clone().multiplyScalar(105)
+  ];
+  var linkCurve = new THREE.CatmullRomCurve3(linkPts);
+  var linkTube = mesh(new THREE.TubeGeometry(linkCurve, 8, 3.5, 8, false), PALETTE.route, routeGroup);
+
+  // ---------- 图例 ----------
+  var legendEl = document.getElementById('legend');
+  parts.forEach(function (p) {
+    var li = document.createElement('li');
+    li.dataset.part = p.name;
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'legend-btn';
+    btn.setAttribute('aria-pressed', 'false');
+    var sw = document.createElement('span');
+    sw.className = 'swatch';
+    sw.style.background = '#' + p.color.toString(16).padStart(6, '0');
+    var tx = document.createElement('span');
+    tx.textContent = p.name;
+    var st = document.createElement('span');
+    st.className = 'legend-state';
+    st.textContent = '显示中';
+    btn.appendChild(sw);
+    btn.appendChild(tx);
+    btn.appendChild(st);
+    btn.addEventListener('click', function () { togglePart(p.name); });
+    li.appendChild(btn);
+    legendEl.appendChild(li);
+  });
+
+  function refreshLegend() {
+    document.querySelectorAll('#legend li').forEach(function (li) {
+      var h = !!hidden[li.dataset.part];
+      li.classList.toggle('hidden', h);
+      var btn = li.querySelector('.legend-btn');
+      if (btn) btn.setAttribute('aria-pressed', String(h));
+      var st = li.querySelector('.legend-state');
+      if (st) st.textContent = h ? '已隐藏' : '显示中';
+    });
+  }
+
+  function togglePart(name) {
+    hidden[name] = !hidden[name];
+    (meshesByPart[name] || []).forEach(function (m) { m.visible = !hidden[name]; });
+    refreshLegend();
+  }
+
+  function showAll() {
+    hidden = {};
+    Object.keys(meshesByPart).forEach(function (k) {
+      meshesByPart[k].forEach(function (m) { m.visible = true; });
+    });
+    refreshLegend();
+  }
+
+  function applyExplode(val) {
+    var factor = val / 100;
+    parts.forEach(function (p) {
+      p.group.children.forEach(function (m) {
+        if (!m.userData.home) m.userData.home = m.position.clone();
+        var dir = m.userData.explode || p.group.userData.explode || v3(0, 1, 0);
+        m.position.copy(m.userData.home).add(dir.clone().multiplyScalar(factor * 150));
+      });
+    });
+  }
+
+  function setWireframe(on) {
+    assembly.traverse(function (obj) {
+      if (obj.isMesh) obj.material.wireframe = on;
+    });
+  }
+
+  function pauseAutoRotate() {
+    if (controls.autoRotate) {
+      controls.autoRotate = false;
+      var cb = document.getElementById('autoRotate');
+      if (cb) cb.checked = false;
+    }
+  }
+
+  function syncUIState() {
+    controls.autoRotateSpeed = 1.5;
+    controls.autoRotate = document.getElementById('autoRotate').checked;
+    gridHelper.visible = document.getElementById('grid').checked;
+    axesHelper.visible = document.getElementById('grid').checked;
+    setWireframe(document.getElementById('wireframe').checked);
+    applyExplode(Number(document.getElementById('explode').value));
+  }
+
+  function viewUpright() {
+    pauseAutoRotate();
+    var b = new THREE.Box3().setFromObject(assembly);
+    var c = b.getCenter(new THREE.Vector3());
+    var s = b.getSize(new THREE.Vector3());
+    var dist = Math.max(s.x, s.y, s.z) * 1.35;
+    controls.target.copy(c);
+    camera.position.copy(c).add(v3(dist * 0.5, s.y * 0.12, dist));
+    camera.lookAt(controls.target);
+    controls.update();
+  }
+
+  function viewOblique() {
+    pauseAutoRotate();
+    var b = new THREE.Box3().setFromObject(assembly);
+    var c = b.getCenter(new THREE.Vector3());
+    var s = b.getSize(new THREE.Vector3()).length();
+    controls.target.copy(c);
+    camera.position.copy(c).add(v3(s * 1.15, s * 0.62, s * 1.15));
+    camera.lookAt(controls.target);
+    controls.update();
+  }
+
+  function orbitCamera(yaw, pitch) {
+    pauseAutoRotate();
+    var offset = camera.position.clone().sub(controls.target);
+    var sph = new THREE.Spherical().setFromVector3(offset);
+    sph.theta += yaw;
+    sph.phi = THREE.MathUtils.clamp(sph.phi - pitch, 0.12, Math.PI - 0.12);
+    sph.makeSafe();
+    offset.setFromSpherical(sph);
+    camera.position.copy(controls.target).add(offset);
+    camera.lookAt(controls.target);
+    controls.update();
+  }
+
+  function zoomCamera(f) {
+    pauseAutoRotate();
+    var offset = camera.position.clone().sub(controls.target);
+    var len = THREE.MathUtils.clamp(offset.length() * f, controls.minDistance, controls.maxDistance);
+    camera.position.copy(controls.target).add(offset.normalize().multiplyScalar(len));
+    camera.lookAt(controls.target);
+    controls.update();
+  }
+
+  function resetAll() {
+    hidden = {};
+    Object.keys(meshesByPart).forEach(function (k) {
+      meshesByPart[k].forEach(function (m) { m.visible = true; });
+    });
+    refreshLegend();
+    document.getElementById('explode').value = '0';
+    document.getElementById('explodeVal').textContent = '0%';
+    document.getElementById('autoRotate').checked = true;
+    document.getElementById('wireframe').checked = false;
+    document.getElementById('grid').checked = true;
+    syncUIState();
+    viewUpright();
+  }
+
+  // ---------- 包围盒 / 相机与网格约束 ----------
+  var box = new THREE.Box3().setFromObject(assembly);
+  var center = box.getCenter(new THREE.Vector3());
+  var size = box.getSize(new THREE.Vector3()).length();
+  camera.near = size / 200;
+  camera.far = size * 40;
+  camera.updateProjectionMatrix();
+  controls.target.copy(center);
+  controls.minDistance = size * 0.35;
+  controls.maxDistance = size * 6;
+  controls.minPolarAngle = 0.12;
+  controls.maxPolarAngle = Math.PI - 0.12;
+  gridHelper.scale.setScalar(size * 1.6);
+  gridHelper.position.y = box.min.y - size * 0.02;
+  axesHelper.position.y = gridHelper.position.y;
+
+  document.getElementById('rotLeft').addEventListener('click', function () { orbitCamera(0.25, 0); });
+  document.getElementById('rotRight').addEventListener('click', function () { orbitCamera(-0.25, 0); });
+  document.getElementById('tiltUp').addEventListener('click', function () { orbitCamera(0, 0.2); });
+  document.getElementById('tiltDown').addEventListener('click', function () { orbitCamera(0, -0.2); });
+  document.getElementById('zoomIn').addEventListener('click', function () { zoomCamera(0.82); });
+  document.getElementById('zoomOut').addEventListener('click', function () { zoomCamera(1.2); });
+  document.getElementById('viewUpright').addEventListener('click', viewUpright);
+  document.getElementById('viewOblique').addEventListener('click', viewOblique);
+  document.getElementById('explode').addEventListener('input', function (e) {
+    applyExplode(Number(e.target.value));
+    document.getElementById('explodeVal').textContent = e.target.value + '%';
+  });
+  document.getElementById('showAll').addEventListener('click', showAll);
+  document.getElementById('resetAll').addEventListener('click', resetAll);
+  document.getElementById('autoRotate').addEventListener('change', function (e) {
+    controls.autoRotateSpeed = 1.5;
+    controls.autoRotate = e.target.checked;
+  });
+  document.getElementById('wireframe').addEventListener('change', function (e) { setWireframe(e.target.checked); });
+  document.getElementById('grid').addEventListener('change', function (e) {
+    gridHelper.visible = e.target.checked;
+    axesHelper.visible = e.target.checked;
+  });
+
+  if (typeof controls.addEventListener === 'function') {
+    controls.addEventListener('start', pauseAutoRotate);
+  }
+
+  window.addEventListener('keydown', function (e) {
+    var t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+    if (e.key === 'ArrowLeft') orbitCamera(0.15, 0);
+    else if (e.key === 'ArrowRight') orbitCamera(-0.15, 0);
+    else if (e.key === 'ArrowUp') orbitCamera(0, 0.12);
+    else if (e.key === 'ArrowDown') orbitCamera(0, -0.12);
+    else if (e.key === '+' || e.key === '=' || e.code === 'NumpadAdd') zoomCamera(0.85);
+    else if (e.key === '-' || e.code === 'NumpadSubtract') zoomCamera(1.18);
+    else return;
+    e.preventDefault();
+  });
+
+  function resize() {
+    var w = container.clientWidth, h = container.clientHeight;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+  syncUIState();
+  viewUpright();
+
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+})();
+</script>
+</body>
+</html>
