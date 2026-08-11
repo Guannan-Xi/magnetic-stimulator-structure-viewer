@@ -266,10 +266,10 @@
   var loopR = mesh(loopGeo, PALETTE.coil, coilGroup);
   loopR.position.copy(coilPos).add(v3(16, 0, 0).applyQuaternion(qC3));
   loopR.quaternion.copy(qC3);
-  var casing = mesh(new THREE.BoxGeometry(92, 48, 18), PALETTE.coilCasing, coilGroup);
+  var casing = mesh(new THREE.BoxGeometry(92, 48, 18), PALETTE.coilCasing, coilGroup, 0.25);
   casing.position.copy(coilPos).add(v3(0, 0, -1).applyQuaternion(qC3));
   casing.quaternion.copy(qC3);
-  var bridge = mesh(new THREE.BoxGeometry(20, 44, 16), PALETTE.coilBridge, coilGroup);
+  var bridge = mesh(new THREE.BoxGeometry(20, 44, 16), PALETTE.coilBridge, coilGroup, 0.3);
   bridge.position.copy(coilPos).add(v3(0, 0, -2).applyQuaternion(qC3));
   bridge.quaternion.copy(qC3);
 
